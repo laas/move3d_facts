@@ -5,13 +5,25 @@
 #include <toaster_msgs/Fact.h>
 #include <toaster_msgs/FactList.h>
 
+#include <boost/tuple/tuple.hpp>
+#include <boost/foreach.hpp>
+
 #include <libmove3d/planners/API/project.hpp>
 #include <libmove3d/planners/API/FactsAndProperties/factManager.hpp>
 #include <libmove3d/planners/API/FactsAndProperties/propertyManager.hpp>
+#include <libmove3d/planners/GTP/GTPTools/worldState.hpp>
+#include <libmove3d/planners/Logging/Logger.h>
 
+#include <tr1/shared_ptr.h>
+
+#define foreach BOOST_FOREACH
+
+using namespace std;
+
+typedef tr1::shared_ptr<WorldState> WorldState_p;
 
 int main(int argc, char** argv) {
-   
+
     ros::init(argc, argv, "move3d_facts");
     ros::NodeHandle node;
     ros::Rate loop_rate(30);
@@ -19,18 +31,22 @@ int main(int argc, char** argv) {
     // Publishing
     ros::Publisher facts_pub = node.advertise<toaster_msgs::FactList>("move3d_facts/factList", 1000);
 
-    bool isReachableBy, isVisibleBy, isOn, isIn;
     toaster_msgs::FactList factList_msg;
     toaster_msgs::Fact fact_msg;
 
     //init move3d
+    logm3d::initializePlannerLogger();
+
     std::string p3d_file;
     node.getParam("/p3dFile",p3d_file);
     if(p3d_file.size()){
-    p3d_read_desc(p3d_file.c_str());
-    global_Project = new Project(new Scene(XYZ_ENV));
-    global_Project->addModule("GTP");
-    global_Project->init();
+        p3d_col_set_mode(p3d_col_mode_none);
+        p3d_read_desc(p3d_file.c_str());
+        p3d_col_set_mode(p3d_col_mode_pqp);
+        p3d_col_start(p3d_col_mode_pqp);
+        global_Project = new Project(new Scene(XYZ_ENV));
+        global_Project->addModule("GTP");
+        global_Project->init();
     }else{
         ROS_FATAL("no /p3dFile param is set");
         return 1;
@@ -40,74 +56,51 @@ int main(int argc, char** argv) {
     /* Start of the Ros loop*/
     /************************/
 
-    FactManager *facts = new FactManager();
-    PropertyManager *props=new PropertyManager();
+    FactManager *fact_mgr = new FactManager();
+    //PropertyManager *props=new PropertyManager();
 
     while (node.ok()) {
-      //Get which facts we should compute from parameters   
-      node.getParam("/computedFacts/isReachableBy", isReachableBy);
-      node.getParam("/computedFacts/isVisibleBy", isVisibleBy);
-      node.getParam("/computedFacts/isOn", isOn);
-      node.getParam("/computedFacts/isIn", isIn);
-        
-      facts->computeAllEnabledFacts();
-      props->computeAllEnabledProperties();
-    
-        if(isReachableBy){
+      std::map<std::string,Facts::FactType> factTypeMap=FactTypeTranslation::getInstance()->getFactTypeMap();
+      typedef pair<string,Facts::FactType> StringFactPair_t;
+      WorldState_p ws = WorldState_p(new WorldState(global_Project->getActiveScene()));
+      ws->saveAll();
+      uint facts_computed_nb(0);
+      //for all existing fact types, get if we need to compute it, and compute
+      foreach(StringFactPair_t it,factTypeMap){
+          std::string &k=it.first;
+          Facts::FactType &v=it.second;
+          bool compute;
+          //do not compute by default
+          node.param("/computedFacts/"+k,compute,false);
 
-           //Test fact
-           fact_msg.property = "isReachableBy";
-           fact_msg.subjectId = "toto";
-           fact_msg.targetId = "tata";
-           fact_msg.confidence = 1.0;
-           fact_msg.doubleValue = 0.95;
-           fact_msg.valueType = 1;
-           fact_msg.factObservability = 1.0;
+          if(compute){
+              ROS_DEBUG("computing facts of type %s",k.c_str());
+              //TODO: compute too much stuff (all possible combinations of isReachable, for every Robot)
+              vector<VirtualFact*> computed_facts = fact_mgr->computeAllOneTypeFacts(v,ws.get());
+              foreach(VirtualFact *fact_it,computed_facts){
+                  fact_msg.property = k;
+                  fact_msg.subjectId = fact_it->getEntity1()->getName();
+                  fact_msg.targetId = fact_it->getEntity2()->getName();
+                  fact_msg.confidence = numeric_limits<double>::quiet_NaN();
+                  fact_msg.doubleValue= numeric_limits<double>::quiet_NaN();
+                  fact_msg.valueType= fact_it->getBoolValue();
+                  //TODO: fill fact_msg properly
 
-           factList_msg.factList.push_back(fact_msg);
-        }
-        
-        if(isVisibleBy){
+                  facts_computed_nb++;
 
-           //Test fact
-           fact_msg.property = "isVisibleBy";
-           fact_msg.subjectId = "toto";
-           fact_msg.targetId = "tata";
-           fact_msg.confidence = 1.0;
-           fact_msg.doubleValue = 0.95;
-           fact_msg.valueType = 1;
-           fact_msg.factObservability = 1.0;
+                  factList_msg.factList.push_back(fact_msg);
+              }
+          }
 
-           factList_msg.factList.push_back(fact_msg);
-        }
-        
-        if(isOn){
+          if(!node.ok())
+              break;
+      }
 
-           //Test fact
-           fact_msg.property = "isOn";
-           fact_msg.subjectId = "toto";
-           fact_msg.targetId = "tata";
-           fact_msg.confidence = 1.0;
-           fact_msg.doubleValue = 0.95;
-           fact_msg.valueType = 1;
-           fact_msg.factObservability = 1.0;
+      ROS_DEBUG("computed %u facts",facts_computed_nb);
 
-           factList_msg.factList.push_back(fact_msg);
-        }
-        
-        if(isIn){
+      //fact_mgr->computeAllEnabledFacts();
+      //props->computeAllEnabledProperties();
 
-           //Test fact
-           fact_msg.property = "isIn";
-           fact_msg.subjectId = "toto";
-           fact_msg.targetId = "tata";
-           fact_msg.confidence = 1.0;
-           fact_msg.doubleValue = 0.95;
-           fact_msg.valueType = 1;
-           fact_msg.factObservability = 1.0;
-
-           factList_msg.factList.push_back(fact_msg);
-        }
 
         facts_pub.publish(factList_msg);
         ros::spinOnce();
