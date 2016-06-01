@@ -1,0 +1,5 @@
+<launch>
+	<rosparam command="load" file="$(find move3d_facts)/Parameters/ComputedFacts.yaml" />
+
+	<node name="move3d_facts" pkg="move3d_facts" type="move3d_facts" output="screen" />  <!-- Launch the move3dfacts node -->
+</launch>
