@@ -1,0 +1,10 @@
+---
+move3d_facts:
+    enable_facts:
+       isReachableBy: true
+       isVisibleBy: false
+       isOn: false
+       isIn: false
+
+
+    p3dFile: "/home/jwaldart/openrobots/share/move3d/assets/experiments/SGP/PickAndPlace.p3d"
