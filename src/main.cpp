@@ -38,7 +38,7 @@ int main(int argc, char** argv) {
     logm3d::initializePlannerLogger();
 
     std::string p3d_file;
-    node.getParam("/p3dFile",p3d_file);
+    node.getParam("/move3d_facts/p3dFile",p3d_file);
     if(p3d_file.size()){
         p3d_col_set_mode(p3d_col_mode_none);
         p3d_read_desc(p3d_file.c_str());
@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
         global_Project->addModule("GTP");
         global_Project->init();
     }else{
-        ROS_FATAL("no /p3dFile param is set");
+        ROS_FATAL("no /move3d_facts/p3dFile param is set");
         return 1;
     }
 
@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
           Facts::FactType &v=it.second;
           bool compute;
           //do not compute by default
-          node.param("/computedFacts/"+k,compute,false);
+          node.param("/move3d_facts/enable_facts/"+k,compute,false);
 
           if(compute){
               ROS_DEBUG("computing facts of type %s",k.c_str());

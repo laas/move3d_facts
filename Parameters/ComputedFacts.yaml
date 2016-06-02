@@ -1,8 +1,0 @@
----
-computedFacts:
-   isReachableBy: true
-   isVisibleBy: false
-   isOn: true
-   isIn: true
-
-
