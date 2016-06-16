@@ -79,14 +79,19 @@ int main(int argc, char** argv) {
               vector<VirtualFact*> computed_facts = fact_mgr->computeAllOneTypeFacts(v,ws.get());
               foreach(VirtualFact *fact_it,computed_facts){
                   fact_msg.property = k;
+                  fact_msg.subProperty = FactTypeTranslation::getInstance()->getFactSubTypeAsString(fact_it->getDefaultSubType());
+                  fact_msg.propertyType = "geometric";
                   fact_msg.subjectId = fact_it->getEntity1()->getName();
                   fact_msg.targetId = fact_it->getEntity2()->getName();
-                  fact_msg.confidence = numeric_limits<double>::quiet_NaN();
-                  fact_msg.doubleValue= numeric_limits<double>::quiet_NaN();
-                  fact_msg.valueType= fact_it->getBoolValue();
-                  //TODO: fill fact_msg properly
-
-                  facts_computed_nb++;
+                  fact_msg.time= ros::Time::now().toNSec();
+                  fact_msg.factObservability = 1.0;
+                  fact_msg.confidence = 1.0;
+                  fact_msg.doubleValue= fact_it->getNumericValue();
+                  if(fact_it->getBoolValue()){
+                      fact_msg.stringValue= "true";
+                  }else{
+                      fact_msg.stringValue= "false";
+                  }
 
                   factList_msg.factList.push_back(fact_msg);
               }
