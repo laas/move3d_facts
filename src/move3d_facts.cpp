@@ -108,6 +108,7 @@ int main(int argc, char** argv) {
 
 
         facts_pub.publish(factList_msg);
+        factList_msg.factList.clear();
         ros::spinOnce();
 
         loop_rate.sleep();
