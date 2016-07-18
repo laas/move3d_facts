@@ -3,8 +3,8 @@ move3d_facts:
     enable_facts:
        isReachableBy: true
        isVisibleBy: false
-       isOn: false
+       isOn: true
        isIn: false
 
 
-    p3dFile: "/home/jwaldart/openrobots/share/move3d/assets/experiments/SGP/PickAndPlace.p3d"
+    p3dFile: "/home/jwaldart/ros_ws/src/toaster/tools/toaster_scripts/p3d/base.p3d"

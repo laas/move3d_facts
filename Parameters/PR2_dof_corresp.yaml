@@ -1,0 +1,26 @@
+---
+move3d:
+    dof_name_corresp: {
+        PR2_ROBOT: {
+            torso_lift_link: Torso,
+            head_pan_link: pan_cam,
+            head_tilt_link: tilt_cam,
+            laser_tilt_mount_link: laser-jnt,
+            r_shoulder_pan_link: right-Arm1,
+            r_shoulder_lift_link: right-Arm2,
+            r_upper_arm_roll_link: right-Arm3,
+            r_elbow_flex_link: right-Arm4,
+            r_forearm_roll_link: right-Arm5,
+            r_wrist_flex_link: right-Arm6,
+            r_wrist_roll_link: right-Arm7,
+            r_gripper_link: fingerJointGripper_0,
+            l_shoulder_pan_link: left-Arm1,
+            l_shoulder_lift_link: left-Arm2,
+            l_upper_arm_roll_link: left-Arm3,
+            l_elbow_flex_link: left-Arm4,
+            l_forearm_roll_link: left-Arm5,
+            l_wrist_flex_link: left-Arm6,
+            l_wrist_roll_link: left-Arm7,
+            l_gripper_link: fingerJointGripper_1
+        }
+    }

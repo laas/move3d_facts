@@ -20,7 +20,13 @@ ENDIF(UNIX)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   toaster_msgs
+  move3d_ros_lib
+  message_filters
 )
+#find_package(catkin REQUIRED COMPONENTS
+#)
+#find_package(catkin REQUIRED COMPONENTS
+#)
 
 ## System dependencies are found with CMake's conventions
 find_package(Boost REQUIRED COMPONENTS system)
@@ -73,8 +79,9 @@ SET(LIBS ${LIBS} ${MOVE3D_LIBRARIES})
 #)
 
 ## Generate services in the 'srv' folder
-#add_service_files(FILES
-#)
+# add_service_files(FILES
+# )
+
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -97,10 +104,10 @@ SET(LIBS ${LIBS} ${MOVE3D_LIBRARIES})
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  #INCLUDE_DIRS include
+    #INCLUDE_DIRS include
 #  LIBRARIES area_manager
-  CATKIN_DEPENDS toaster_msgs
-#  DEPENDS system_lib
+  CATKIN_DEPENDS toaster_msgs message_filters move3d_ros_lib
+  DEPENDS MOVE3D-PLANNERS libmove3d
 )
 
 ###########
@@ -117,6 +124,8 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${INCLUDE_DIRS}
 )
+
+MESSAGE("catkin: ${catkin_INCLUDE_DIRS} move3d_ros: ${move3d_ros_lib_INCLUDE_DIRS} include_dirs: ${INCLUDE_DIRS}" )
 
 ## Declare a cpp library
 # add_library(area_manager

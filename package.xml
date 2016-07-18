@@ -41,7 +41,11 @@
   <!--   <test_depend>gtest</test_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend> toaster_msgs </build_depend>
+  <build_depend> message_filters </build_depend>
+  <build_depend> move3d_ros_lib </build_depend>
   <run_depend> toaster_msgs </run_depend>
+  <run_depend> message_filters </run_depend>
+  <run_depend> move3d_ros_lib </run_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
