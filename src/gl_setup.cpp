@@ -184,8 +184,8 @@ int gl_setup_window(int win_width, int win_height){
     // init GLUT and create Window
     //glutInit(&argc, argv);
     int argc=1;
-    char name[]="move3d_facts";
-    glutInit(&argc, (char**)&name);
+    char *name="move3d_facts";
+    glutInit(&argc, &name);
     glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA);
     glutInitWindowPosition(100, 100);
     glutInitWindowSize(win_width, win_height);
