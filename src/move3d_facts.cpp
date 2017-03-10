@@ -28,6 +28,9 @@
 #include <move3d_ros_lib/scenemanager.h>
 #include <move3d_ros_lib/savescenariosrv.h>
 
+#include <std_srvs/Trigger.h>
+#include <std_srvs/SetBool.h>
+
 #define foreach BOOST_FOREACH
 
 using namespace std;
@@ -44,18 +47,23 @@ public:
     virtual ~Move3dFacts();
 
     bool init(ros::NodeHandle *nh);
+    void initSubscriber();
     int run();
 
+    bool enableSrvCB(std_srvs::SetBoolRequest &req, std_srvs::SetBoolResponse &resp);
     static void worldUpdateCB(const ObjectListStampedConstPtr &object_list, const HumanListStampedConstPtr &human_list, const RobotListStampedConstPtr &robot_list);
     void updateAndCompute(const ObjectListStampedConstPtr &object_list, const HumanListStampedConstPtr &human_list, const RobotListStampedConstPtr &robot_list);
     void updateEnv(const ObjectListStampedConstPtr &object_list, const HumanListStampedConstPtr &human_list, const RobotListStampedConstPtr &robot_list);
 
     bool computeFacts();
+    bool computeFacts(std_srvs::TriggerRequest &req,std_srvs::TriggerResponse &resp);
 
 private:
     static Move3dFacts *_instance;
     FactManager *fact_mgr;
     ros::Publisher facts_pub;
+    ros::ServiceServer compute_srv;
+    ros::ServiceServer enable_srv;
     ros::NodeHandle *nh;
     typedef message_filters::sync_policies::ExactTime<ObjectListStamped,HumanListStamped,RobotListStamped> SyncPolicy;
     message_filters::Subscriber<toaster_msgs::ObjectListStamped> *object_sub;
@@ -97,15 +105,13 @@ bool Move3dFacts::init(ros::NodeHandle *nh)
     this->nh=nh;
     facts_pub = nh->advertise<toaster_msgs::FactList>("move3d_facts/factList", 1000);
 
-    object_sub= new message_filters::Subscriber<toaster_msgs::ObjectListStamped> (*nh,"/pdg/objectList",1);
-    human_sub = new message_filters::Subscriber<toaster_msgs::HumanListStamped>  (*nh,"/pdg/humanList",1);
-    robots_sub= new message_filters::Subscriber<toaster_msgs::RobotListStamped>  (*nh,"/pdg/robotList",1);
+    enable_srv = nh->advertiseService("/move3d_facts/enable",&Move3dFacts::enableSrvCB,this);
+    compute_srv = nh->advertiseService("/move3d_facts/computeOnce",&Move3dFacts::computeFacts,this);
 
     scMgr = new SceneManager(nh);
     scMgr->fetchDofCorrespParam("/move3d/dof_name_corresp/PR2_ROBOT","PR2_ROBOT");
 
-    sync = new message_filters::Synchronizer<SyncPolicy>(SyncPolicy(10),*object_sub,*human_sub,*robots_sub);
-    sync->registerCallback(boost::bind(&worldUpdateCB,_1,_2,_3));
+    //initSubscriber();
 
     //init move3d
     logm3d::initializePlannerLogger();
@@ -130,6 +136,22 @@ bool Move3dFacts::init(ros::NodeHandle *nh)
     return true;
 }
 
+void Move3dFacts::initSubscriber()
+{
+    // human_sub = new message_filters::Subscriber<toaster_msgs::HumanListStamped>  (*nh,"/pdg/humanList",1);
+    // robots_sub= new message_filters::Subscriber<toaster_msgs::RobotListStamped>  (*nh,"/pdg/robotList",1);
+
+    // sync = new message_filters::Synchronizer<SyncPolicy>(SyncPolicy(10),*human_sub,*robots_sub);
+    // sync->registerCallback(boost::bind(&worldUpdateCB,_1,_2));
+
+    object_sub= new message_filters::Subscriber<toaster_msgs::ObjectListStamped> (*nh,"/pdg/objectList",1);
+    human_sub = new message_filters::Subscriber<toaster_msgs::HumanListStamped>  (*nh,"/pdg/humanList",1);
+    robots_sub= new message_filters::Subscriber<toaster_msgs::RobotListStamped>  (*nh,"/pdg/robotList",1);
+
+    sync = new message_filters::Synchronizer<SyncPolicy>(SyncPolicy(10),*object_sub,*human_sub,*robots_sub);
+    sync->registerCallback(boost::bind(&worldUpdateCB,_1,_2,_3));
+}
+
 int Move3dFacts::run()
 {
     ros::Rate loop_rate(30);
@@ -139,6 +161,30 @@ int Move3dFacts::run()
     //     loop_rate.sleep();
     // }
     return 0;
+}
+
+bool Move3dFacts::enableSrvCB(std_srvs::SetBoolRequest &req, std_srvs::SetBoolResponse &resp)
+{
+    if(req.data && (!sync)){
+        //enable
+        initSubscriber();
+    }else if (req.data == false && sync){
+        //disable
+        delete sync;
+        sync=NULL;
+        if (human_sub)
+            delete human_sub;
+        human_sub = NULL;
+        if (robots_sub)
+            delete robots_sub;
+        robots_sub = NULL;
+        if (object_sub)
+            delete object_sub;
+        object_sub = NULL;
+    }
+    resp.message=string("");
+    resp.success=true;
+    return true;
 }
 
 void Move3dFacts::worldUpdateCB(const ObjectListStampedConstPtr &object_list, const HumanListStampedConstPtr &human_list, const RobotListStampedConstPtr &robot_list){
@@ -188,6 +234,17 @@ void Move3dFacts::updateEnv(const ObjectListStampedConstPtr &object_list, const 
             scMgr->updateHuman(h.meAgent.meEntity.id,h.meAgent.meEntity.pose,joints);
         }
     }
+}
+
+bool Move3dFacts::computeFacts(std_srvs::TriggerRequest &req,std_srvs::TriggerResponse &resp){
+    resp.success=this->computeFacts();
+    // for debug:
+    // g3d_set_win_camera(G3D_WIN->vs,4,5,0,20,0.0,1.2,0,0,1);
+    // g3d_save_win_camera(G3D_WIN->vs);
+    // g3d_draw_allwin_active();
+    // resp.success = true;
+    resp.message = std::string("");
+    return true;
 }
 
 bool Move3dFacts::computeFacts(){
