@@ -21,6 +21,8 @@ ENDIF(UNIX)
 find_package(catkin REQUIRED COMPONENTS
   toaster_msgs
   move3d_ros_lib
+  sensor_msgs
+  image_transport
   message_filters
 )
 #find_package(catkin REQUIRED COMPONENTS
@@ -43,6 +45,17 @@ PKG_CHECK_MODULES(MOVE3D REQUIRED libmove3d)
 set(INCLUDE_DIRS ${INCLUDE_DIRS} ${MOVE3D_INCLUDE_DIRS})
 LINK_DIRECTORIES(${MOVE3D_LIBRARY_DIRS} )
 SET(LIBS ${LIBS} ${MOVE3D_LIBRARIES})
+
+find_package(OpenGL REQUIRED)
+find_package(X11 REQUIRED)
+find_package(GLUT REQUIRED)
+
+set(INCLUDE_DIRS ${INCLUDE_DIRS}
+    ${OPENGL_INCLUDE_DIR}
+    ${X11_INCLUDE_DIR}
+    ${GLUT_INCLUDE_DIRS}
+)
+SET(LIBS ${LIBS} ${OPENGL_LIBRARIES} ${X11_LIBRARIES} ${GLUT_LIBRARY})
 
 include_directories(${INCLUDE_DIRS})
 
@@ -136,7 +149,7 @@ MESSAGE("catkin: ${catkin_INCLUDE_DIRS} move3d_ros: ${move3d_ros_lib_INCLUDE_DIR
 # )
 
 ## Declare a cpp executable
- add_executable(move3d_facts src/move3d_facts.cpp)
+ add_executable(move3d_facts src/move3d_facts.cpp src/gl_setup.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes

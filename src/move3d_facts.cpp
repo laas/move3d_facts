@@ -3,6 +3,8 @@
 #include <vector>
 
 #include <ros/ros.h>
+#include <image_transport/image_transport.h>
+#include <sensor_msgs/Image.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/exact_time.h>
@@ -22,6 +24,10 @@
 #include <libmove3d/planners/API/FactsAndProperties/propertyManager.hpp>
 #include <libmove3d/planners/GTP/GTPTools/worldState.hpp>
 #include <libmove3d/planners/Logging/Logger.h>
+#include <libmove3d/graphic/proto/g3d_newWindow.hpp>
+#include <libmove3d/graphic/proto/g3d_draw_env_proto.h>
+#include <libmove3d/include/Graphic-pkg.h>
+#include <libmove3d/include/move3d-gui.h>
 
 #include <tr1/shared_ptr.h>
 
@@ -39,6 +45,8 @@ using namespace move3d;
 typedef tr1::shared_ptr<WorldState> WorldState_p;
 using namespace toaster_msgs;
 
+int win_width = 500, win_height = 500;
+
 class Move3dFacts
 {
     Move3dFacts();
@@ -48,6 +56,7 @@ public:
 
     bool init(ros::NodeHandle *nh);
     void initSubscriber();
+    bool initGlEnv();
     int run();
 
     bool enableSrvCB(std_srvs::SetBoolRequest &req, std_srvs::SetBoolResponse &resp);
@@ -60,8 +69,10 @@ public:
 
 private:
     static Move3dFacts *_instance;
+    qtG3DWindow *_qG3dWin;
     FactManager *fact_mgr;
     ros::Publisher facts_pub;
+    image_transport::Publisher persp_pub;
     ros::ServiceServer compute_srv;
     ros::ServiceServer enable_srv;
     ros::NodeHandle *nh;
@@ -100,10 +111,15 @@ Move3dFacts::~Move3dFacts()
 
 }
 
+extern int gl_setup(int,int);
+extern void updateGL();
+
 bool Move3dFacts::init(ros::NodeHandle *nh)
 {
     this->nh=nh;
     facts_pub = nh->advertise<toaster_msgs::FactList>("move3d_facts/factList", 1000);
+    image_transport::ImageTransport imageTransport(*nh);
+    persp_pub = imageTransport.advertise("move3d_facts/viewPoint",1);
 
     enable_srv = nh->advertiseService("/move3d_facts/enable",&Move3dFacts::enableSrvCB,this);
     compute_srv = nh->advertiseService("/move3d_facts/computeOnce",&Move3dFacts::computeFacts,this);
@@ -130,6 +146,9 @@ bool Move3dFacts::init(ros::NodeHandle *nh)
         return false;
     }
 
+    if (!initGlEnv()){
+        return false;
+    }
 
     saveScenarioSrv = new SaveScenarioSrv(scMgr,nh);
     saveScenarioSrv->advertise("/move3d_facts/save_scenario");
@@ -150,6 +169,45 @@ void Move3dFacts::initSubscriber()
 
     sync = new message_filters::Synchronizer<SyncPolicy>(SyncPolicy(10),*object_sub,*human_sub,*robots_sub);
     sync->registerCallback(boost::bind(&worldUpdateCB,_1,_2,_3));
+}
+
+bool Move3dFacts::initGlEnv()
+{
+
+    this->_qG3dWin = new qtG3DWindow();
+
+    gl_setup(win_width,win_height);
+
+    glViewport(0,0,(GLint) win_width,(GLint) win_height);
+    //glClearColor(G3D_WIN->vs.bg[0],G3D_WIN->vs.bg[1],G3D_WIN->vs.bg[2],.0);
+
+    //   glMatrixMode(GL_PROJECTION);
+    //   glLoadIdentity();
+    g3d_set_projection_matrix(G3D_WIN->vs.projection_mode);
+
+    glMatrixMode(GL_MODELVIEW);
+
+    glLoadIdentity();
+
+
+    // on desactive tout mode OpenGL inutile
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_ALPHA_TEST);
+
+    glEnable(GL_DEPTH_TEST);
+
+    if(G3D_WIN->vs.GOURAUD)
+    {
+        glShadeModel(GL_SMOOTH);
+    } else
+    {
+        glShadeModel(GL_FLAT);
+    }
+
+    ext_g3d_draw_allwin_active = updateGL;
+
+    return true;
 }
 
 int Move3dFacts::run()
@@ -258,6 +316,7 @@ bool Move3dFacts::computeFacts(){
     nh->param("/move3d_facts/update_base_only",updateBaseOnly,false);
     scMgr->setUpdateAcceptBaseOnly(updateBaseOnly);
 
+    IsVisible::setSaveImageFor("RAYMAN_HUMAN1");
 
     WorldState_p ws(new WorldState(global_Project->getActiveScene()));
     ws->saveAll();
@@ -298,6 +357,29 @@ bool Move3dFacts::computeFacts(){
         if(!nh->ok())
             break;
     }
+
+    if(persp_pub.getNumSubscribers() && IsVisible::saveImageFor().size()){
+        boost::shared_array<float> im_arr = IsVisible::lastImageSaved();
+        if(im_arr){
+            ROS_DEBUG("publishing point of view");
+            sensor_msgs::Image image;
+            image.header.stamp = ros::Time::now();
+            image.width = 500;
+            image.height = 500;
+            image.step = image.width*3;
+            image.encoding="rgb8";
+            image.data.assign(image.step * image.height,0);
+            for(uint row=0;row<500;++row){
+                for(uint col=0;col<500;++col){
+                    for(uint c=0;c<3;++c){
+                        image.data[(col+row*500)*3+c]=im_arr[(col+(500-1-row)*500)*3+c]*255;
+                    }
+                }
+            }
+            persp_pub.publish(image);
+        }
+    }
+
 
     ROS_DEBUG("computed %u facts",facts_computed_nb);
 
