@@ -31,6 +31,7 @@
 #define foreach BOOST_FOREACH
 
 using namespace std;
+using namespace move3d;
 
 typedef tr1::shared_ptr<WorldState> WorldState_p;
 using namespace toaster_msgs;
@@ -62,14 +63,15 @@ private:
     message_filters::Subscriber<toaster_msgs::RobotListStamped>  *robots_sub;
 
     message_filters::Synchronizer<SyncPolicy> *sync;
-    SceneManager scMgr;
+    SceneManager *scMgr;
 
     SaveScenarioSrv *saveScenarioSrv;
 };
 
 Move3dFacts *Move3dFacts::_instance = new Move3dFacts();
 
-Move3dFacts::Move3dFacts()
+Move3dFacts::Move3dFacts():
+    sync(0)
 {
     FactManager *fact_mgr = new FactManager();
 
@@ -99,7 +101,8 @@ bool Move3dFacts::init(ros::NodeHandle *nh)
     human_sub = new message_filters::Subscriber<toaster_msgs::HumanListStamped>  (*nh,"/pdg/humanList",1);
     robots_sub= new message_filters::Subscriber<toaster_msgs::RobotListStamped>  (*nh,"/pdg/robotList",1);
 
-    scMgr.fetchDofCorrespParam("/move3d/dof_name_corresp/PR2_ROBOT","PR2_ROBOT");
+    scMgr = new SceneManager(nh);
+    scMgr->fetchDofCorrespParam("/move3d/dof_name_corresp/PR2_ROBOT","PR2_ROBOT");
 
     sync = new message_filters::Synchronizer<SyncPolicy>(SyncPolicy(10),*object_sub,*human_sub,*robots_sub);
     sync->registerCallback(boost::bind(&worldUpdateCB,_1,_2,_3));
@@ -107,19 +110,22 @@ bool Move3dFacts::init(ros::NodeHandle *nh)
     //init move3d
     logm3d::initializePlannerLogger();
 
-    std::string p3d_file;
+    std::string p3d_file,sce_file;
     nh->getParam("/move3d_facts/p3dFile",p3d_file);
+    nh->getParam("/move3d_facts/sceFile",sce_file);
     if(p3d_file.size()){
-        scMgr.setP3dPath(p3d_file);
-        scMgr.addModule("Entities");
-        scMgr.createScene();
+        scMgr->setP3dPath(p3d_file);
+        scMgr->setScePath(sce_file);
+        scMgr->addModule("Entities");
+        scMgr->addModule("HriInfo");
+        scMgr->createScene();
     }else{
         ROS_FATAL("no /move3d_facts/p3dFile param is set");
         return false;
     }
 
 
-    saveScenarioSrv = new SaveScenarioSrv(&scMgr,nh);
+    saveScenarioSrv = new SaveScenarioSrv(scMgr,nh);
     saveScenarioSrv->advertise("/move3d_facts/save_scenario");
     return true;
 }
@@ -150,7 +156,7 @@ void Move3dFacts::updateAndCompute(const ObjectListStampedConstPtr &object_list,
 void Move3dFacts::updateEnv(const ObjectListStampedConstPtr &object_list, const HumanListStampedConstPtr &human_list, const RobotListStampedConstPtr &robot_list)
 {
     foreach(const Object &o,object_list->objectList){
-        scMgr.updateObject(o.meEntity.name,o.meEntity.pose);
+        scMgr->updateObject(o.meEntity.name,o.meEntity.pose);
     }
     foreach(const toaster_msgs::Robot &r,robot_list->robotList){
         std::vector<double> q;
@@ -158,7 +164,7 @@ void Move3dFacts::updateEnv(const ObjectListStampedConstPtr &object_list, const 
             const toaster_msgs::Joint &jnt = r.meAgent.skeletonJoint[i];
             q.push_back(jnt.position);
         }
-        bool ok = scMgr.updateRobot(r.meAgent.meEntity.name,r.meAgent.meEntity.pose,q);
+        bool ok = scMgr->updateRobot(r.meAgent.meEntity.id,r.meAgent.meEntity.pose,q);
         if(!ok){
             //failure, try to provide the joint list name to scMgr
             ROS_DEBUG("try to provide the joint list name to scMgr");
@@ -167,8 +173,19 @@ void Move3dFacts::updateEnv(const ObjectListStampedConstPtr &object_list, const 
                 const std::string &name = r.meAgent.skeletonNames[i];
                 names.push_back(name);
             }
-            scMgr.setDofNameOrdered(r.meAgent.meEntity.name,names);
-            scMgr.updateRobot(r.meAgent.meEntity.name,r.meAgent.meEntity.pose,q);
+            scMgr->setDofNameOrdered(r.meAgent.meEntity.name,names);
+            scMgr->updateRobot(r.meAgent.meEntity.id,r.meAgent.meEntity.pose,q);
+        }
+    }
+    if(human_list->humanList.size()){
+        ROS_WARN_ONCE("No support for humans yet. Cannot update human position");
+        foreach (const toaster_msgs::Human &h, human_list->humanList) {
+            ROS_DEBUG("Update human %s (%s)",h.meAgent.meEntity.name.c_str(),h.meAgent.meEntity.id.c_str());
+            std::map<std::string, geometry_msgs::Pose> joints;
+            for(uint i=0;i<h.meAgent.skeletonNames.size();++i){
+                joints[h.meAgent.skeletonNames[i]]=h.meAgent.skeletonJoint[i].meEntity.pose;
+            }
+            scMgr->updateHuman(h.meAgent.meEntity.id,h.meAgent.meEntity.pose,joints);
         }
     }
 }
@@ -180,7 +197,12 @@ bool Move3dFacts::computeFacts(){
     std::map<std::string,Facts::FactType> factTypeMap=FactTypeTranslation::getInstance()->getFactTypeMap();
     typedef pair<string,Facts::FactType> StringFactPair_t;
 
-    WorldState_p ws = WorldState_p(new WorldState(global_Project->getActiveScene()));
+    bool updateBaseOnly(0);
+    nh->param("/move3d_facts/update_base_only",updateBaseOnly,false);
+    scMgr->setUpdateAcceptBaseOnly(updateBaseOnly);
+
+
+    WorldState_p ws(new WorldState(global_Project->getActiveScene()));
     ws->saveAll();
     uint facts_computed_nb(0);
     //for all existing fact types, get if we need to compute it, and compute
