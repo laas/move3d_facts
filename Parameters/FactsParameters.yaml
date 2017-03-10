@@ -1,10 +1,15 @@
 ---
 move3d_facts:
     enable_facts:
-       isReachableBy: true
-       isVisibleBy: false
-       isOn: true
+       isReachableBy: false
+       isVisibleBy: true
+       isOn: false
        isIn: false
 
 
-    p3dFile: "/home/jwaldart/ros_ws/src/toaster/tools/toaster_scripts/p3d/base.p3d"
+    #sceFile: "/home/jwaldart/ros_ws/src/toaster/tools/toaster_scripts/p3d/base.sce"
+    update_base_only: true
+
+move3d:
+    p3dFile: "/home/jwaldart/ros_ws/src/toaster/tools/toaster_scripts/p3d/base_pr2.p3d"
+
