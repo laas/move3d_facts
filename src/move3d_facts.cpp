@@ -109,7 +109,6 @@ bool Move3dFacts::init(ros::NodeHandle *nh)
     compute_srv = nh->advertiseService("/move3d_facts/computeOnce",&Move3dFacts::computeFacts,this);
 
     scMgr = new SceneManager(nh);
-    scMgr->fetchDofCorrespParam("/move3d/dof_name_corresp/PR2_ROBOT","PR2_ROBOT");
 
     //initSubscriber();
 
@@ -117,7 +116,9 @@ bool Move3dFacts::init(ros::NodeHandle *nh)
     logm3d::initializePlannerLogger();
 
     std::string p3d_file,sce_file;
-    nh->getParam("/move3d_facts/p3dFile",p3d_file);
+    if(!nh->getParam("/move3d_facts/p3dFile",p3d_file)){
+        nh->getParam("/move3d/p3dFile",p3d_file);
+    }
     nh->getParam("/move3d_facts/sceFile",sce_file);
     if(p3d_file.size()){
         scMgr->setP3dPath(p3d_file);
@@ -126,9 +127,11 @@ bool Move3dFacts::init(ros::NodeHandle *nh)
         scMgr->addModule("HriInfo");
         scMgr->createScene();
     }else{
-        ROS_FATAL("no /move3d_facts/p3dFile param is set");
+        ROS_FATAL("no /move3d_facts/p3dFile param is set nor /move3d/p3dFile");
         return false;
     }
+
+    scMgr->fetchDofCorrespParam("/move3d/dof_name_corresp");
 
 
     saveScenarioSrv = new SaveScenarioSrv(scMgr,nh);
